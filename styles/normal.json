@@ -1,1 +1,30 @@
-{"font": "cambriamath", "fontsizes": {"nadpis": 50, "button": 20}, "colors": {"text": [0,0,0], "background": [255,233,125], "continent": [145,219,50], "ocean": [30,80,200], "border": [0,0,0]}}
+{
+  "font": "cambriamath",
+  "fontsizes":
+  {
+    "nadpis": 50,
+    "button": 25,
+    "loading": 30
+  },
+  "colors":
+  {
+    "text": [0,0,0],
+    "background": [255,233,125],
+    "toolbar_background": [155,155,100],
+    "continent": [145,219,50],
+    "ocean": [30,80,200],
+    "border": [0,0,0],
+    "correct_area": [0,255,0],
+    "wrong_area": [255,0,0],
+    "rest_area": [255,255,0],
+    "zoom_button": [255,255,255],
+    "zoom_button_hover": [200,200,200],
+    "alert": [200,200,200],
+    "alert_succes": [0,191,24],
+    "alert_succes_hover": [0,173,24],
+    "alert_cancel": [255,15,15],
+    "alert_cancel_hover": [215,15,15],
+    "alert_other": [100,100,100],
+    "alert_other_hover": [50,50,50]
+  }
+}
