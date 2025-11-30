@@ -1,0 +1,22 @@
+QWidget {
+    font-family: "Cambria Math", serif;
+}
+
+QPushButton {
+    margin: auto;
+    padding: 10px;
+    font-size: 20px;
+    font: bold;
+    font-family: "Cambria Math", serif;
+    border: 1px bold;
+    border-radius: 5px;
+}
+
+QPushButton#random_country
+{
+    background-color: #00aaff;
+}
+
+QPushButton#random_country:hover {
+    background-color: #0066aa;
+}

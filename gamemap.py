@@ -1,4 +1,4 @@
-import sys, os, json, pygame, pyproj, threading, ctypes
+import sys, os, json, pygame, pyproj, threading, ctypes, random
 import geopandas as gpd
 from shapely.geometry import Polygon, MultiPolygon, shape
 from shapely.ops import unary_union, transform
@@ -16,12 +16,12 @@ class MainWindow:
         self.countryfile = countrymap
         self.buttons = []
         self.map = Map(self.screen, self.mapfile, self.countryfile, 10, 115, width-20, height-130)
+        self.set_buttons()
         self.set_title()
         self.alert = None # Vyskakovací okno
         self.running = True
         self.dragging = False
         self.drawing = False
-        self.mainloop()
 
     def mainloop(self):
         while(self.running):
@@ -33,6 +33,7 @@ class MainWindow:
         for event in pygame.event.get():
             mouse_pos = pygame.mouse.get_pos()
             self.set_title()
+            self.set_buttons()
 
             if event.type == pygame.QUIT:
                 self.running = False
@@ -116,6 +117,20 @@ class MainWindow:
         else:
             self.title = "GeoDraw"
 
+    def set_buttons(self):
+        width, height = pygame.display.get_surface().get_size()
+        self.buttons = []
+        if self.map.state == "result":
+            self.buttons.append(Button(pygame.Rect(width - 265, 15, 250, 50), "Next random country", styles.color["button_next_country"], styles.color["button_next_country_hover"], lambda: self.new_country(pick_random_country())))
+
+    def new_country(self, country_path):
+        width, height = pygame.display.get_surface().get_size()
+        self.countryfile = gpd.read_file(country_path)
+        country_name = country_path.split("/")[-1].split(".")[0]  # Chci název souboru
+        self.country = " ".join(country_name.split("_"))  # Z podtržítek mezery
+        self.buttons = []
+        self.map = Map(self.screen, self.mapfile, self.countryfile, 10, 115, width - 20, height - 130)
+
     def draw_window(self):
         width, height = pygame.display.get_surface().get_size()
         # Minimální velikost je 500x500
@@ -134,6 +149,10 @@ class MainWindow:
         pygame.draw.rect(self.screen, styles.color["toolbar_background"], (0, 0, width, 100))
         draw_text_in_rect(self.screen, self.title, pygame.Rect(100,10,width-200,80), styles.color["text"])
 
+        # Tlačítka
+        for button in self.buttons:
+            button.draw(self.screen,pygame.mouse.get_pos())
+
         # Alert
         if self.alert:
             self.alert.draw_alert()
@@ -148,7 +167,7 @@ class Map:
         self.surface = None # Plocha kam vygeneruji polygon mapy, abych to mohl generovat, jen když se tam něco změní
         self.worldmap = unary_union([row.geometry for _, row in data.iterrows()]).buffer(0) # Data vnější mapy
         self.country = country_data # Data mapy země
-        self.country = unary_union([row.geometry for _, row in self.country.iterrows()])
+        self.country = unary_union([row.geometry.buffer(0) for _, row in self.country.iterrows()])
         self.state = "drawing" # Aktuální stav mapy (drawing/result)
         self.scale = 1 # Poměr šířky v px ku šířce mapy v zeměpisných souřadnicích
         self.bounds_rect = data.union_all().bounds # Najde co nejmenší obdélník, do kterého se vejde mapa
@@ -224,9 +243,9 @@ class Map:
                 pygame.draw.lines(self.surface, styles.color["border"], False,
                                   [(self.geo_to_screen(i[0], i[1])) for i in self.drawn_points], 2)
         elif self.state == "result":
-            self.draw_country(self.surface, self.intersection_geom, styles.color["correct_area"])
             self.draw_country(self.surface, self.drawn_rest_geom, styles.color["wrong_area"])
             self.draw_country(self.surface, self.country_rest_geom, styles.color["rest_area"])
+            self.draw_country(self.surface, self.intersection_geom, styles.color["correct_area"])
 
     """Logika --------------------------"""
     def click_inside_map(self, x, y):
@@ -524,6 +543,14 @@ def set_icon(icon):
         pass
     pygame.display.set_icon(icon)
 
+def pick_random_country(path=os.path.dirname(os.path.abspath(sys.argv[0]))+"/country_data"):
+    countries = json.loads(open(path+"/countries_find.json", 'r', encoding="utf-8").read())
+    list_countries = list(countries.keys())
+    choice = random.choice(list_countries)
+    folder = path + "/" + countries[choice] + "/ADM0/"
+    files = [f for f in os.listdir(folder) if os.path.isfile(os.path.join(folder, f))]
+    return folder + "/" + files[0] # Měl by být pouze jeden
+
 class Styles:
     def __init__(self, file_path):
         styles = json.loads(open(file_path, 'r', encoding="utf-8").read())
@@ -531,7 +558,21 @@ class Styles:
         self.fontsizes = styles["fontsizes"]
         self.color = styles["colors"]
 
+def run_pygame(width=1000,height=700, background_map_file=None, country_file=None):
+    """ Spustí hru se zadanými parametry (Pak je ještě potřeba zvenku zavolat .mainloop())"""
+    path = os.path.dirname(os.path.abspath(sys.argv[0]))
+    global styles
+    styles = Styles(path + "/styles/normal.json")
+    if background_map_file is None:
+        background_map_file = path+"/data/worldmap.geojson"
+    if country_file is None:
+        country_file = pick_random_country(path+"/country_data")
+    country_name = country_file.split("/")[-1].split(".")[0] # Chci název souboru
+    country_name = " ".join(country_name.split("_")) # Z podtržítek mezery
+    return MainWindow(width, height, gpd.read_file(background_map_file), country_name, gpd.read_file(country_file), pygame.image.load(path+"/styles/icon.png"))
+
 if __name__ == "__main__":
     path = os.path.dirname(os.path.abspath(sys.argv[0]))
     styles = Styles(path+"/styles/normal.json")
-    run = MainWindow(1000, 700, gpd.read_file(path+"/worldmap.geojson"), "France", gpd.read_file(path+"/geoBoundaries-FRA-ADM0_simplified.topojson"), pygame.image.load(path+"/icon.png"))
+    run = MainWindow(1000, 700, gpd.read_file(path+"/data/worldmap.geojson"), "France", gpd.read_file(path+"/geoBoundaries-FRA-ADM0_simplified.topojson"), pygame.image.load(path+"/icon.png"))
+    run.mainloop()

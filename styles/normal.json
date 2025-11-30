@@ -25,6 +25,8 @@
     "alert_cancel": [255,15,15],
     "alert_cancel_hover": [215,15,15],
     "alert_other": [100,100,100],
-    "alert_other_hover": [50,50,50]
+    "alert_other_hover": [50,50,50],
+    "button_next_country": [0,150,255],
+    "button_next_country_hover": [0,125,200]
   }
 }
