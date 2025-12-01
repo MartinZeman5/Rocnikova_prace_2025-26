@@ -45,7 +45,7 @@ class Menu(QWidget):
             # Pokud spouštíš kód na jiném systému než Windows (Linux/Mac),
             # tato funkce nemusí existovat, proto chybu ignorujeme.
             pass
-        self.setWindowIcon(QIcon(path+'/styles/icon.png'))
+        self.setWindowIcon(QIcon(resource_path('styles/icon.png')))
 
     def spustit_hru(self):
         scale_factor = self.devicePixelRatioF()
@@ -59,9 +59,8 @@ class Menu(QWidget):
 
 
 if __name__ == '__main__':
-    path = os.path.dirname(os.path.abspath(sys.argv[0]))
     app = QApplication(sys.argv)
-    with open(path+"/styles/menu.qss", "r") as f:
+    with open(resource_path("styles/menu.qss"), "r") as f:
         _style = f.read()
         app.setStyleSheet(_style)
     window = Menu()

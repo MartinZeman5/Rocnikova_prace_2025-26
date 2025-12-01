@@ -543,13 +543,24 @@ def set_icon(icon):
         pass
     pygame.display.set_icon(icon)
 
-def pick_random_country(path=os.path.dirname(os.path.abspath(sys.argv[0]))+"/country_data"):
-    countries = json.loads(open(path+"/countries_find.json", 'r', encoding="utf-8").read())
+""" Další pomocné funkce ------------------------------------------------------------------------------------------- """
+def resource_path(relative_path):
+    """ Získá správnou cestu k přibaleným datům (pro exe) """
+    try:
+        # Pokud běží jako exe, PyInstaller vytvoří tuto složku
+        base_path = sys._MEIPASS
+    except Exception:
+        # Pokud běží normálně v Pythonu
+        base_path = os.path.abspath(".")
+    return os.path.join(base_path, relative_path)
+
+def pick_random_country(path=resource_path("country_data")):
+    countries = json.loads(open(os.path.join(path,"countries_find.json"), 'r', encoding="utf-8").read())
     list_countries = list(countries.keys())
     choice = random.choice(list_countries)
     folder = path + "/" + countries[choice] + "/ADM0/"
     files = [f for f in os.listdir(folder) if os.path.isfile(os.path.join(folder, f))]
-    return folder + "/" + files[0] # Měl by být pouze jeden
+    return os.path.join(folder,files[0]) # Měl by být pouze jeden
 
 class Styles:
     def __init__(self, file_path):
@@ -560,19 +571,17 @@ class Styles:
 
 def run_pygame(width=1000,height=700, background_map_file=None, country_file=None):
     """ Spustí hru se zadanými parametry (Pak je ještě potřeba zvenku zavolat .mainloop())"""
-    path = os.path.dirname(os.path.abspath(sys.argv[0]))
     global styles
-    styles = Styles(path + "/styles/normal.json")
+    styles = Styles(resource_path("styles/normal.json"))
     if background_map_file is None:
-        background_map_file = path+"/data/worldmap.geojson"
+        background_map_file = resource_path("data/worldmap.geojson")
     if country_file is None:
-        country_file = pick_random_country(path+"/country_data")
+        country_file = pick_random_country(resource_path("country_data"))
     country_name = country_file.split("/")[-1].split(".")[0] # Chci název souboru
     country_name = " ".join(country_name.split("_")) # Z podtržítek mezery
-    return MainWindow(width, height, gpd.read_file(background_map_file), country_name, gpd.read_file(country_file), pygame.image.load(path+"/styles/icon.png"))
+    return MainWindow(width, height, gpd.read_file(background_map_file), country_name, gpd.read_file(country_file), pygame.image.load(resource_path("styles/icon.png")))
 
 if __name__ == "__main__":
-    path = os.path.dirname(os.path.abspath(sys.argv[0]))
-    styles = Styles(path+"/styles/normal.json")
-    run = MainWindow(1000, 700, gpd.read_file(path+"/data/worldmap.geojson"), "France", gpd.read_file(path+"/geoBoundaries-FRA-ADM0_simplified.topojson"), pygame.image.load(path+"/icon.png"))
+    styles = Styles(resource_path("styles/normal.json"))
+    run = MainWindow(1000, 700, gpd.read_file(resource_path("data/worldmap.geojson")), "France", gpd.read_file(resource_path("geoBoundaries-FRA-ADM0_simplified.topojson")), pygame.image.load(resource_path("styles/icon.png")))
     run.mainloop()
