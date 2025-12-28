@@ -27,6 +27,10 @@
     "alert_other": [100,100,100],
     "alert_other_hover": [50,50,50],
     "button_next_country": [0,150,255],
-    "button_next_country_hover": [0,125,200]
+    "button_next_country_hover": [0,125,200],
+    "button_calculate_result": [0,255,150],
+    "button_calculate_result_hover": [0,200,125],
+    "button_hint": [255,155,15],
+    "button_hint_hover": [190,100,5]
   }
 }

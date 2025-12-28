@@ -1,12 +1,13 @@
 import sys, os, json, pygame, pyproj, threading, ctypes, random
 import geopandas as gpd
-from shapely.geometry import Polygon, MultiPolygon, shape
+from pygame import K_KP_ENTER, K_RETURN
+from shapely.geometry import Polygon, MultiPolygon, shape, box
 from shapely.ops import unary_union, transform
 
 """ Hlavní okno ---------------------------------------------------------------------------------------------------- """
 class MainWindow:
     """Hlavní okno"""
-    def __init__(self, width, height, outermap, country, countrymap, icon):
+    def __init__(self, width, height, outermap, country, countrymap, icon, tutorial=False):
         pygame.display.set_icon(icon)
         pygame.init()
         set_icon(icon)
@@ -16,20 +17,24 @@ class MainWindow:
         self.countryfile = countrymap
         self.buttons = []
         self.map = Map(self.screen, self.mapfile, self.countryfile, 10, 115, width-20, height-130)
+        self.tutorial = Tutorial(self, tutorial)
         self.set_buttons()
         self.set_title()
         self.alert = None # Vyskakovací okno
         self.running = True
         self.dragging = False
         self.drawing = False
+        self.button_clicked = 0 # Aby nereagovala myš chvíli po zakliknutí tlačítka >0 znamená čekat, na konci každého loopu -1
 
     def mainloop(self):
+        """ Hlavní smyčka """
         while(self.running):
             self.event_handler()
             self.draw_window()
         pygame.quit()
 
     def event_handler(self):
+        """ Spravuje události, které nastanou v okně """
         for event in pygame.event.get():
             mouse_pos = pygame.mouse.get_pos()
             self.set_title()
@@ -41,14 +46,21 @@ class MainWindow:
             elif event.type == pygame.VIDEORESIZE:
                 self.draw_window()
                 self.map.set_default_view()
+                self.map.update_map_surface()
 
             elif event.type == pygame.MOUSEBUTTONDOWN:
-                for button in self.buttons:
-                    button.check_click(mouse_pos)
-                if self.alert:
-                    for button in self.alert.buttons:
-                        if button.check_click(mouse_pos):
-                            self.alert = None
+                if self.button_clicked <= 0:
+                    for button in self.buttons:
+                        button.check_click(mouse_pos)
+                    if self.alert:
+                        for button in self.alert.buttons:
+                            if button.check_click(mouse_pos):
+                                self.alert = None
+                                self.button_clicked = 5
+
+            elif event.type == pygame.KEYDOWN:
+                if (event.key == K_KP_ENTER or event.key == K_RETURN) and self.tutorial.active: # Další krok v tutoriálu
+                    self.tutorial.next_step()
 
             """ Ovládání mapy """
             if self.alert or self.map.state == "calculating": # Pokud je vyskakovací okno, nechci ovládat mapu
@@ -62,19 +74,20 @@ class MainWindow:
                     self.map.zoom(1/1.1, mouse_pos[0], mouse_pos[1])
 
             elif event.type == pygame.MOUSEBUTTONDOWN:
-                if event.button == 3:
-                    if self.map.click_inside_map(mouse_pos[0], mouse_pos[1]):
-                        self.dragging = True
-                        self.prev_mouse = event.pos
-                elif event.button == 1:
-                    button_clicked = False
-                    for button in self.map.buttons:
-                        if button.check_click(mouse_pos):
-                            button_clicked = True
-                    if self.map.click_inside_map(mouse_pos[0], mouse_pos[1]) and not button_clicked:
-                        self.drawing = True
-                        self.map.add_drawn_point(mouse_pos[0], mouse_pos[1])
-                        self.prev_mouse = event.pos
+                if self.button_clicked <= 0:
+                    if event.button == 3:
+                        if self.map.click_inside_map(mouse_pos[0], mouse_pos[1]):
+                            self.dragging = True
+                            self.prev_mouse = event.pos
+                    elif event.button == 1:
+                        button_clicked = False
+                        for button in self.map.buttons:
+                            if button.check_click(mouse_pos):
+                                button_clicked = True
+                        if self.map.click_inside_map(mouse_pos[0], mouse_pos[1]) and not button_clicked:
+                            self.drawing = True
+                            self.map.add_drawn_point(mouse_pos[0], mouse_pos[1])
+                            self.prev_mouse = event.pos
 
             elif event.type == pygame.MOUSEBUTTONUP:
                 if event.button == 3:
@@ -101,29 +114,52 @@ class MainWindow:
                 elif event.key == pygame.K_DELETE:
                     text = "Are you sure you want to delete all drawn structures?"
                     self.alert = Alert(self,text,["Yes","Cancel"], [lambda: self.map.delete_all_drawn_structures(), None])
-                elif event.key == pygame.K_KP_ENTER or event.key == pygame.K_RETURN and self.map.state == "drawing":
+                elif event.key == pygame.K_KP_ENTER or event.key == pygame.K_RETURN and self.map.state == "drawing" and not self.tutorial.active:
                     # Je to delší výpočet, dávám na pozadí
                     self.map.state = "calculating"
                     thread = threading.Thread(target=self.map.calculate_result)
                     thread.start()
+        self.button_clicked -= 1
 
     def set_title(self):
-        if self.map.state == "drawing":
+        """ Nastaví nadpis nad mapou """
+        if self.tutorial.active:
+            self.title = self.tutorial.get_title()
+        elif self.map.state == "drawing":
             self.title = "Draw " + self.country
         elif self.map.state == "calculating":
             self.title = "Calculating..."
         elif self.map.state == "result":
-            self.title = f"Result: {self.map.result:.1f} %"
+            self.title = f"Result: {self.map.result:.1f} % ({self.map.percent_correct_area:.1f} % - {self.map.percent_wrong_area:.1f} %)"
         else:
             self.title = "GeoDraw"
 
     def set_buttons(self):
+        """ Přidá aktuálně potřebná tlačítka """
         width, height = pygame.display.get_surface().get_size()
         self.buttons = []
-        if self.map.state == "result":
-            self.buttons.append(Button(pygame.Rect(width - 265, 15, 250, 50), "Next random country", styles.color["button_next_country"], styles.color["button_next_country_hover"], lambda: self.new_country(pick_random_country())))
+        if self.tutorial.active:
+            if self.tutorial.step >= 8 and self.map.state == "drawing" and not self.map.hint:
+                self.buttons.append(Button(pygame.Rect(15, 15, 125, 50), "Hint", styles.color["button_hint"], styles.color["button_hint_hover"], lambda: self.hint_alert()))
+            if self.tutorial.step < 11:
+                self.buttons.append(Button(pygame.Rect(width - 215, 15, 200, 50), "Next step", styles.color["button_next_country"], styles.color["button_next_country_hover"], lambda: self.tutorial.next_step()))
+            else:
+                self.buttons.append(Button(pygame.Rect(width - 215, 15, 200, 50), "Close tutorial", styles.color["alert_cancel"], styles.color["alert_cancel_hover"], lambda: self.tutorial.next_step()))
+        else:
+            if self.map.state == "result":
+                self.buttons.append(Button(pygame.Rect(width - 250, 15, 235, 50), "Next random country", styles.color["button_next_country"], styles.color["button_next_country_hover"], lambda: self.new_country(pick_random_country())))
+            elif self.map.state == "drawing" and not self.map.hint:
+                self.buttons.append(Button(pygame.Rect(15, 15, 125, 50), "Hint", styles.color["button_hint"], styles.color["button_hint_hover"], lambda: self.hint_alert()))
+            if self.map.state == "drawing":
+                self.buttons.append(Button(pygame.Rect(width - 250, 15, 235, 50), "Calculate result", styles.color["button_calculate_result"], styles.color["button_calculate_result_hover"], lambda: self.map.calculate_result()))
+
+    def hint_alert(self):
+        """ Zobrazí hint alert """
+        self.alert = Alert(self, "Are you sure you want to see a hint?", ["Yes", "Cancel"],
+                           [lambda: self.map.show_hint(), None])
 
     def new_country(self, country_path):
+        """ Spustí novou zemi """
         width, height = pygame.display.get_surface().get_size()
         self.countryfile = gpd.read_file(country_path)
         country_name = country_path.split("/")[-1].split(".")[0]  # Chci název souboru
@@ -132,10 +168,15 @@ class MainWindow:
         self.map = Map(self.screen, self.mapfile, self.countryfile, 10, 115, width - 20, height - 130)
 
     def draw_window(self):
+        """ Vykreslí okno """
         width, height = pygame.display.get_surface().get_size()
         # Minimální velikost je 500x500
-        if width < 500 or height < 500:
+        if (width < 500 or height < 500) and not self.tutorial.active:
             width = max(500, width)
+            height = max(500, height)
+            self.screen = pygame.display.set_mode((width, height), pygame.RESIZABLE)
+        elif (width < 1000 or height < 500) and self.tutorial.active: # Při tutoriálu chceme větší šířku, kvůli delším textům
+            width = max(1000, width)
             height = max(500, height)
             self.screen = pygame.display.set_mode((width, height), pygame.RESIZABLE)
         self.map.set_window_size(10, 115, width-20, height-130)
@@ -147,7 +188,7 @@ class MainWindow:
 
         # Toolbar
         pygame.draw.rect(self.screen, styles.color["toolbar_background"], (0, 0, width, 100))
-        draw_text_in_rect(self.screen, self.title, pygame.Rect(100,10,width-200,80), styles.color["text"])
+        draw_text_in_rect(self.screen, self.title, pygame.Rect(150,10,width-400,80), styles.color["text"])
 
         # Tlačítka
         for button in self.buttons:
@@ -165,10 +206,20 @@ class Map:
     def __init__(self, window, data, country_data, x, y, max_width, max_height):
         self.window = window # Odkaz na okno ve kterém se mapa nachází
         self.surface = None # Plocha kam vygeneruji polygon mapy, abych to mohl generovat, jen když se tam něco změní
-        self.worldmap = unary_union([row.geometry for _, row in data.iterrows()]).buffer(0) # Data vnější mapy
+        self.outermap_type = "custom"
+        if data is None:
+            self.outermap_type = "worldmap0"
+            self.worldmap1 = styles.worldmap1
+            self.worldmap0 = styles.worldmap0
+            self.outermap = styles.worldmap0
+            data = styles.data
+        else:
+            self.outermap = unary_union([row.geometry for _, row in data.iterrows()]).buffer(0) # Data vnější mapy
         self.country = country_data # Data mapy země
         self.country = unary_union([row.geometry.buffer(0) for _, row in self.country.iterrows()])
         self.state = "drawing" # Aktuální stav mapy (drawing/result)
+        self.hint = False # Je zobrazena nápověda?
+        self.hint_data = country_data.buffer(0).union_all().bounds
         self.scale = 1 # Poměr šířky v px ku šířce mapy v zeměpisných souřadnicích
         self.bounds_rect = data.union_all().bounds # Najde co nejmenší obdélník, do kterého se vejde mapa
         self.min_offset_x = -self.bounds_rect[0]
@@ -230,22 +281,43 @@ class Map:
                 pygame.draw.lines(surface, styles.color["border"], True, points, 2)
 
     def draw_buttons(self):
+        """ Vykreslí všechna tlačítka """
         for button in self.buttons:
             button.draw(self.window,pygame.mouse.get_pos())
 
     def update_map_surface(self):
+        """ Aktualizuje zobrazení mapy, aktualizujeme jen když je potřeba, aby aplikace běžela rychleji."""
         self.surface = pygame.Surface((self.width, self.height))
         pygame.draw.rect(self.surface, styles.color["ocean"], (0, 0, self.width, self.height))
-        self.draw_country(self.surface, self.worldmap, styles.color["continent"])
+        # Oříznutí, aby se vykreslovalo jen to v okně
+        geo_top_left = self.screen_to_geo(self.screen_x, self.screen_y)
+        geo_bottom_right = self.screen_to_geo(self.screen_x+self.width, self.screen_y+self.height)
+        min_x = min(geo_top_left[0], geo_bottom_right[0])
+        max_x = max(geo_top_left[0], geo_bottom_right[0])
+        min_y = min(geo_top_left[1], geo_bottom_right[1])
+        max_y = max(geo_top_left[1], geo_bottom_right[1])
+        view_box = box(min_x, min_y, max_x, max_y)
+        visible_geometry = self.outermap.intersection(view_box)
+        self.draw_country(self.surface, visible_geometry, styles.color["continent"])
         if self.state == "drawing":
             self.draw_borders(self.surface, self.drawn)
             if len(self.drawn_points) >= 2:
                 pygame.draw.lines(self.surface, styles.color["border"], False,
                                   [(self.geo_to_screen(i[0], i[1])) for i in self.drawn_points], 2)
+            if self.hint:
+                hint_data_screen = list(self.hint_data)
+                hint_data_screen[0], hint_data_screen[1] = self.geo_to_screen(hint_data_screen[0], hint_data_screen[1])
+                hint_data_screen[2], hint_data_screen[3] = self.geo_to_screen(hint_data_screen[2], hint_data_screen[3])
+                rect_left = min(hint_data_screen[0], hint_data_screen[2])
+                rect_top = min(hint_data_screen[1], hint_data_screen[3])
+                rect_width = abs(hint_data_screen[0] - hint_data_screen[2])
+                rect_height = abs(hint_data_screen[1] - hint_data_screen[3])
+                rect_data = [rect_left, rect_top, rect_width, rect_height]
+                pygame.draw.rect(self.surface, styles.color["border"], rect_data, 2)
         elif self.state == "result":
-            self.draw_country(self.surface, self.drawn_rest_geom, styles.color["wrong_area"])
-            self.draw_country(self.surface, self.country_rest_geom, styles.color["rest_area"])
-            self.draw_country(self.surface, self.intersection_geom, styles.color["correct_area"])
+            self.draw_country(self.surface, self.drawn_rest_geom.intersection(view_box), styles.color["wrong_area"])
+            self.draw_country(self.surface, self.country_rest_geom.intersection(view_box), styles.color["rest_area"])
+            self.draw_country(self.surface, self.intersection_geom.intersection(view_box), styles.color["correct_area"])
 
     """Logika --------------------------"""
     def click_inside_map(self, x, y):
@@ -294,7 +366,17 @@ class Map:
             self.scale = self.default_scale
         self.offset_x = (rel_x / self.scale) - cursor_lon
         self.offset_y = (rel_y / self.scale) + cursor_lat
-        self.move(0,0) # Zkontrolovat, zda jsme neodzoomovali mimo plochu
+        # Zdetailnit mapu pokud jsme zazoomovali dostatečně
+        if self.outermap_type == "worldmap0":
+            if self.scale > 13:
+                self.outermap_type = "worldmap1"
+                self.outermap = self.worldmap1
+        elif self.outermap_type == "worldmap1":
+            if self.scale < 13:
+                self.outermap_type = "worldmap0"
+                self.outermap = self.worldmap0
+        if rate != 1:
+            self.move(0,0) # Zkontrolovat, zda jsme neodzoomovali mimo plochu
     
     def move(self, x, y):
         """Posune mapu o x, y a pohlídá, že nevyjedu z mapy ven"""
@@ -323,6 +405,7 @@ class Map:
     def add_drawn_point(self, x, y):
         """Přidá souřadnice převedené na geografické souřadnice"""
         self.drawn_points.append((self.screen_to_geo(x,y)))
+        self.update_map_surface()
 
     def remove_drawn_point(self):
         """Odstraní poslední nakreslený bod"""
@@ -330,6 +413,7 @@ class Map:
             self.drawn_points.pop()
         if len(self.drawn_points) == 1:
             self.drawn_points.pop()
+        self.update_map_surface()
 
     def close_drawn_structure(self):
         """Uzavře doposud namalované body a převede je na Polygon"""
@@ -342,14 +426,17 @@ class Map:
         if not poly.is_valid:
             poly = poly.buffer(0)  # automatická oprava
         self.drawn = unary_union([self.drawn, poly])
+        self.update_map_surface()
 
     def delete_all_drawn_structures(self):
         """ Smaže všechny hranice namalované hráčem """
         self.drawn_points = []
         self.drawn = MultiPolygon([])
+        self.update_map_surface()
 
     def calculate_result(self):
         """ Vypočítá úspěšnost namalovaného objektu a uloží Polygony překryvů """
+        self.close_drawn_structure()
         country_multipolygon = self.country_metric
         drawn_multipolygon = self.drawn
         # Je potřeba přepočítat geografické souřadnice, tak aby polygon seděl metricky
@@ -367,6 +454,17 @@ class Map:
         self.drawn_rest_geom = transform(self.back_transformer, drawn_rest_metric)
         self.country_rest_geom = transform(self.back_transformer, country_rest_metric)
         self.state = "result"
+        self.update_map_surface()
+
+    def show_hint(self):
+        """ Způsobí, že se bude vykreslovat obdélník, ve kterém se stát nachází """
+        self.hint = True
+        # Zazoomovat do místa státu
+        self.offset_x = -self.hint_data[0]
+        self.offset_y = self.hint_data[3]
+        self.scale = min(self.width / abs(self.hint_data[2]-self.hint_data[0]), self.height / abs(self.hint_data[3]-self.hint_data[1]))
+        # Zařídí, abychom nevyjeli z mapy a trochu oddálí
+        self.zoom(0.5)
         self.update_map_surface()
 
 """ Tlačítko ------------------------------------------------------------------------------------------------------- """
@@ -422,19 +520,70 @@ class Alert:
         return buttons
 
     def reload_alert(self):
+        """ Znovunačtení, aby alert byl uprostřed okna """
         self.x = pygame.display.get_surface().get_width() // 2 - 150
         self.buttons = self.create_buttons()
 
     def draw_alert(self):
+        """ Vykreslení """
         pygame.draw.rect(self.window.screen, styles.color["alert"], (self.x,150,300,200))
         draw_text_in_rect(self.window.screen, self.text, pygame.Rect(self.x + 25,170,250,100), styles.color["text"])
         for button in self.buttons:
             button.draw(self.window.screen,pygame.mouse.get_pos())
 
     def action(self, i):
+        """ Provede danou akci, podle indexu stisknutého tlačítka """
         if self.button_actions[i]:
             self.button_actions[i]()
 
+""" Tutoriál ------------------------------------------------------------------------------------------------------- """
+class Tutorial:
+    """ Potřebné informace o tutoriálu """
+    def __init__(self, window, active):
+        self.window = window
+        if active:
+            self.step = 0
+        else:
+            self.step = 9
+        self.active = active
+
+    def next_step(self):
+        """ Další krok v tutoriálu, pokud jsme na konci, zavře okno """
+        self.step += 1
+        if self.step == 10: # Vypočítání výsledku testovacího malování
+            # Je to delší výpočet, dávám na pozadí
+            self.window.map.state = "calculating"
+            thread = threading.Thread(target=self.window.map.calculate_result)
+            thread.start()
+        if self.step == 12:
+            self.window.running = False
+
+    def get_title(self):
+        """ Jednotlivé kroky a texty k nim """
+        if self.step == 0:
+            return "Welcome to the tutorial, you can get to the next step by clicking the button, or ENTER."
+        elif self.step == 1:
+            return "You can zoom by clicking the buttons top right, or by mousewheel."
+        elif self.step == 2:
+            return "You can move the map by moving mouse while holding the right button."
+        elif self.step == 3:
+            return "To start drawing a country, you need to press or hold the left button."
+        elif self.step == 4:
+            return "When you are satisfied with shape of what have you drawn, press SPACE, it will close the drawn polygon."
+        elif self.step == 5:
+            return "You can draw multiple polygons (some countries have islands you need to include)."
+        elif self.step == 6:
+            return "If you want to delete, what you have drawn, press DELETE."
+        elif self.step == 7:
+            return "If you don't want to delete everything, BACKSPACE will delete only the last point."
+        elif self.step == 8:
+            return "The game includes a hint, that will show you the box in which the country fits."
+        elif self.step == 9:
+            return "If you want to calculate the result, press ENTER. Try to draw Germany:"
+        elif self.step == 10:
+            return "Green is the correct area, red is the wrong area, and yellow is what have you missed."
+        else:
+            return "Congratulations! You have completed the tutorial."
 
 """ Pomocné funkce pro vykreslování -------------------------------------------------------------------------------- """
 def fill_except_rect(surface, color, exclude_rect):
@@ -555,33 +704,50 @@ def resource_path(relative_path):
     return os.path.join(base_path, relative_path)
 
 def pick_random_country(path=resource_path("country_data")):
-    countries = json.loads(open(os.path.join(path,"countries_find.json"), 'r', encoding="utf-8").read())
-    list_countries = list(countries.keys())
+    json_dict = json.loads(open(os.path.join(path,"continents.json"), 'r', encoding="utf-8").read())
+    allowed_continents = json_dict["allowed_continents"]
+    continent = random.choice(allowed_continents)
+    list_countries = list(json_dict[continent].keys())
     choice = random.choice(list_countries)
-    folder = path + "/" + countries[choice] + "/ADM0/"
+    folder = path + "/" + json_dict[continent][choice] + "/ADM0/"
     files = [f for f in os.listdir(folder) if os.path.isfile(os.path.join(folder, f))]
     return os.path.join(folder,files[0]) # Měl by být pouze jeden
 
 class Styles:
+    """ Používané styly """
     def __init__(self, file_path):
         styles = json.loads(open(file_path, 'r', encoding="utf-8").read())
         self.font = styles["font"]
         self.fontsizes = styles["fontsizes"]
         self.color = styles["colors"]
+        # Tohle sice nejsou úplně styly, ale chci to mít globálně, abych nemusel při každé nové zemi načítat znovu
+        data = gpd.read_file(resource_path("data/worldmap1.geojson"))
+        self.worldmap1 = unary_union([row.geometry for _, row in data.iterrows()]).buffer(0)
+        data = gpd.read_file(resource_path("data/worldmap0.geojson"))
+        self.worldmap0 = unary_union([row.geometry for _, row in data.iterrows()]).buffer(0)
+        self.data = data
 
 def run_pygame(width=1000,height=700, background_map_file=None, country_file=None):
-    """ Spustí hru se zadanými parametry (Pak je ještě potřeba zvenku zavolat .mainloop())"""
+    """ Spustí hru se zadanými parametry (Pak je ještě potřeba zvenku zavolat .mainloop()) """
     global styles
     styles = Styles(resource_path("styles/normal.json"))
-    if background_map_file is None:
-        background_map_file = resource_path("data/worldmap.geojson")
     if country_file is None:
         country_file = pick_random_country(resource_path("country_data"))
     country_name = country_file.split("/")[-1].split(".")[0] # Chci název souboru
     country_name = " ".join(country_name.split("_")) # Z podtržítek mezery
-    return MainWindow(width, height, gpd.read_file(background_map_file), country_name, gpd.read_file(country_file), pygame.image.load(resource_path("styles/icon.png")))
+    width = max(500, width)
+    height = max(500, height)
+    return MainWindow(width, height, background_map_file, country_name, gpd.read_file(country_file), pygame.image.load(resource_path("styles/icon.png")))
+
+def run_tutorial(width=1000,height=700):
+    """ Spustí tutoriál (Pak je ještě potřeba zvenku zavolat .mainloop()) """
+    global styles
+    styles = Styles(resource_path("styles/normal.json"))
+    width = max(1000, width)
+    height = max(500, height)
+    return MainWindow(width, height, None, "Germany", gpd.read_file(resource_path("data/tutorial-Germany.topojson")), pygame.image.load(resource_path("styles/icon.png")), tutorial=True)
 
 if __name__ == "__main__":
     styles = Styles(resource_path("styles/normal.json"))
-    run = MainWindow(1000, 700, gpd.read_file(resource_path("data/worldmap.geojson")), "France", gpd.read_file(resource_path("geoBoundaries-FRA-ADM0_simplified.topojson")), pygame.image.load(resource_path("styles/icon.png")))
+    run = MainWindow(1000, 700, gpd.read_file(resource_path("data/worldmap0.geojson")), "France", gpd.read_file(resource_path("geoBoundaries-FRA-ADM0_simplified.topojson")), pygame.image.load(resource_path("styles/icon.png")))
     run.mainloop()

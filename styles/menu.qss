@@ -1,9 +1,13 @@
+Menu {
+    background-color: white;
+}
+
 QWidget {
     font-family: "Cambria Math", serif;
 }
 
 QPushButton {
-    margin: auto;
+    margin: 10px auto 10px auto;
     padding: 10px;
     font-size: 20px;
     font: bold;
@@ -12,11 +16,56 @@ QPushButton {
     border-radius: 5px;
 }
 
-QPushButton#random_country
+QPushButton#play_button
 {
     background-color: #00aaff;
 }
 
-QPushButton#random_country:hover {
+QPushButton#play_button:hover {
     background-color: #0066aa;
+}
+
+/* Potřebné věci ke ContinentSelectoru */
+#ContinentSelector {
+    background-color: white;
+}
+
+#ContinentTitle {
+    font-size: 18px;
+    font-weight: bold;
+    color: #333333;
+    padding-bottom: 10px;
+    border-bottom: 2px solid #eeeeee;
+}
+
+QCheckBox {
+    font-size: 14px;
+    padding: 5px;
+    spacing: 10px; /* Mezera mezi čtverečkem a textem */
+}
+
+QCheckBox::indicator {
+    width: 18px;
+    height: 18px;
+}
+
+#BtnStart {
+    background-color: #4CAF50;
+    color: white;
+    font-weight: bold;
+    font-size: 14px;
+    border: none;
+}
+#BtnStart:hover {
+    background-color: #45a049;
+}
+
+#BtnBack {
+    background-color: #f44336;
+    color: white;
+    font-size: 14px;
+    border: none;
+}
+#BtnBack:hover {
+    background-color: #da190b;
 }

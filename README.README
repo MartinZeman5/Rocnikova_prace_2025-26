@@ -1,8 +1,8 @@
 Je třeba nainstalovat python knihovny:
 pip install pygame pyproj geopandas shapely PyQt6
 
-Hlavní soubor pro spuštění je menu.py, ten spustí PyQt menu, které je zatím docela chudé.
-Je tam tlačítko, které spustí pygame gamemap.py
+Hlavní soubor pro spuštění je menu.py, ten spustí PyQt menu.
+Jsou tam tlačítka, která spouští pygame gamemap.py
 
 Ovládání mapy:
 pravé tlačítko myši - pohyb mapy
@@ -13,4 +13,4 @@ enter - vyhodnocení
 backspace - smazání posledního zaznamenaného bodu při malovaní
 delete - smazání všeho doposud namalovaného
 
-určitě plánuji přidat nějaký tutoriál/manuál na ovládání přímo do hry
+Uvnitř hry je krátký tutoriál, který s ovládáním seznámí
