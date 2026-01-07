@@ -1,16 +1,4 @@
 {
-  "all_continents": [
-    "Europe",
-    "Asia",
-    "Africa",
-    "Oceania",
-    "North America",
-    "Central America",
-    "South America"
-  ],
-  "allowed_continents": [
-    "Asia"
-  ],
   "Europe": {
     "Albania": "_Eurasia/ALB",
     "Andorra": "_Eurasia/AND",

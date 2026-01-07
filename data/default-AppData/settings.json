@@ -1,0 +1,21 @@
+{
+  "color-palette": "light-mode",
+  "all_continents": [
+    "Europe",
+    "Asia",
+    "Africa",
+    "Oceania",
+    "North America",
+    "Central America",
+    "South America"
+  ],
+  "allowed_continents": [
+    "Europe",
+    "Asia",
+    "Africa",
+    "Oceania",
+    "North America",
+    "Central America",
+    "South America"
+  ]
+}

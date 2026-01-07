@@ -40,11 +40,27 @@ class Menu(QWidget):
         btn_random.setObjectName("play_button")
         btn_random.clicked.connect(self.spustit_hru_random_country)
 
+        btn_choose = QPushButton('Choose country')
+        btn_choose.setObjectName("play_button")
+        btn_choose.clicked.connect(self.spustit_hru_choose_country)
+
+        btn_settings = QPushButton('Settings')
+        btn_settings.setObjectName("settings_button")
+        btn_settings.clicked.connect(self.otevrit_nastaveni)
+
+        footer = QLabel()
+        footer.setObjectName("copyright")
+        footer.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        footer.setText('© 2025-2026 Martin Zeman')
+
         middle_v_layout.addWidget(title,1)
         middle_v_layout.addStretch(1)
         middle_v_layout.addWidget(btn_tutorial, 1)
         middle_v_layout.addWidget(btn_random,1)
-        middle_v_layout.addStretch(5)
+        middle_v_layout.addWidget(btn_choose, 1)
+        middle_v_layout.addWidget(btn_settings,1)
+        middle_v_layout.addStretch(3)
+        middle_v_layout.addWidget(footer, 1)
 
         h_layout.addStretch(1)
         h_layout.addLayout(middle_v_layout, 2)
@@ -77,9 +93,8 @@ class Menu(QWidget):
                 return
 
             # Nahrát do JSON vybrané kontinenty
-            json_dict = json.loads(open(resource_path("country_data/continents.json"), 'r', encoding="utf-8").read())
-            json_dict["allowed_continents"] = selected_continents
-            json.dump(json_dict, open(resource_path("country_data/continents.json"), "w", encoding="utf-8"), indent=2)
+            settings.sdict["allowed_continents"] = selected_continents
+            settings.save_settings()
 
             # Spustit hru
             scale_factor = self.devicePixelRatioF()
@@ -99,6 +114,38 @@ class Menu(QWidget):
         gamemap.mainloop()
         self.show()
 
+    def otevrit_nastaveni(self):
+        settings_window = SettingsDialog()
+        # Zobrazíme modální okno
+        if settings_window.exec():
+            if settings_window.dark_mode.isChecked():
+                settings.mode = "dark-mode"
+            else:
+                settings.mode = "light-mode"
+            settings.save_settings()
+            app.setStyleSheet(load_styles(settings.mode))
+
+    def spustit_hru_choose_country(self):
+        country_chooser = CountryDialog()
+        # Zobrazíme modální okno
+        if country_chooser.exec():
+            country = country_chooser.input_field.text()
+            country_dict = country_chooser.country_data
+
+            if country not in country_dict:
+                QMessageBox.warning(self, "Warning", country+" doesn't exist!")
+                return
+
+            # Spustit hru
+            scale_factor = self.devicePixelRatioF()
+            sirka = self.frameGeometry().width() * scale_factor
+            vyska = self.frameGeometry().height() * scale_factor
+            country_file = resource_path("country_data/"+country_dict[country]) + "/ADM0/"
+            files = [f for f in os.listdir(country_file) if os.path.isfile(os.path.join(country_file, f))]
+            gamemap = run_pygame(width=sirka, height=vyska, country_file=country_file+files[0])
+            self.hide()
+            gamemap.mainloop()
+            self.show()
 
 class ContinentSelector(QDialog):
     """ Před tím, než se spustí hra, chceme vědět, ze kterých kontinentů hráč chce státy """
@@ -116,18 +163,21 @@ class ContinentSelector(QDialog):
         # Nadpis
         label = QLabel("Choose continents you want to have countries from")
         label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        label.setObjectName("ContinentTitle")  # ID pro QSS
+        label.setObjectName("Title")
         layout.addWidget(label)
 
         # Seznam kontinentů
-        json_dict = json.loads(open(resource_path("country_data/continents.json"), 'r', encoding="utf-8").read())
-        self.continents_list = json_dict["all_continents"]
+        self.continents_list = settings.sdict["all_continents"]
+        self.last_choice = settings.sdict["allowed_continents"]
 
         # Vytvoření checkboxů
         self.checkboxes = []
         for cont in self.continents_list:
             chk = QCheckBox(cont)
-            chk.setChecked(True)
+            if cont in self.last_choice:
+                chk.setChecked(True)
+            else:
+                chk.setChecked(False)
             self.checkboxes.append(chk)
             layout.addWidget(chk)
 
@@ -157,6 +207,106 @@ class ContinentSelector(QDialog):
             if chk.isChecked():
                 selected.append(chk.text())
         return selected
+
+
+class CountryDialog(QDialog):
+    """ Dialog, který umožní hráči vybrat zemi, kterou chce zakreslovat do mapy. """
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle("Choose country")
+        self.resize(400, 400)
+
+        layout = QVBoxLayout()
+
+        label = QLabel("Write name of the country, you want to draw:")
+        label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        label.setObjectName("Title")
+        layout.addWidget(label, 1)
+        layout.addStretch(1)
+
+        self.input_field = QLineEdit()
+        layout.addWidget(self.input_field, 1)
+        layout.addStretch(3)
+
+        self.country_data = json.loads(open(resource_path("country_data/countries_find.json"), 'r', encoding="utf-8").read())
+        # Získáme pouze seznam názvů zemí
+        country_names = list(self.country_data.keys())
+
+        # Přidáme doplňovač, aby uživatel věděl, jaké má možnosti
+        completer = QCompleter(country_names)
+        completer.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
+        completer.setFilterMode(Qt.MatchFlag.MatchContains)
+        self.input_field.setCompleter(completer)
+
+        # Tlačítka
+        btn_layout = QHBoxLayout()
+
+        btn_cancel = QPushButton("Cancel")
+        btn_cancel.setObjectName("BtnBack")
+        btn_cancel.clicked.connect(self.reject)
+
+        btn_start = QPushButton("Start Game")
+        btn_start.setObjectName("BtnStart")
+        btn_start.clicked.connect(self.accept)
+
+        btn_layout.addWidget(btn_cancel)
+        btn_layout.addWidget(btn_start)
+
+        layout.addLayout(btn_layout, 1)
+        self.setLayout(layout)
+
+class SettingsDialog(QDialog):
+    """ Nastavení """
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle("Settings")
+        self.resize(400, 400)
+        self.setObjectName("SettingsDialog")
+        if settings.mode == "dark-mode":
+            apply_dark_title_bar(self)
+
+        settings.load_settings()
+
+        # Layout
+        layout = QVBoxLayout()
+
+        # Nadpis
+        label = QLabel("Settings")
+        label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        label.setObjectName("Title")
+        layout.addWidget(label,1)
+        layout.addStretch(1)
+
+        # Dark mode
+        self.dark_mode = QCheckBox("Dark mode")
+        if settings.mode == "dark-mode":
+            self.dark_mode.setChecked(True)
+        else:
+            self.dark_mode.setChecked(False)
+        layout.addWidget(self.dark_mode, 1)
+        layout.addStretch(5)
+
+        # Tlačítka
+        btn_layout = QHBoxLayout()
+
+        btn_cancel = QPushButton("Cancel")
+        btn_cancel.setObjectName("BtnBack")
+        btn_cancel.clicked.connect(self.reject)
+
+        btn_start = QPushButton("Save Settings")
+        btn_start.setObjectName("BtnStart")
+        btn_start.clicked.connect(self.accept)
+
+        btn_layout.addWidget(btn_cancel)
+        btn_layout.addWidget(btn_start)
+
+        layout.addLayout(btn_layout, 1)
+
+        label = QLabel("(Some changes may apply after app restart)")
+        label.setAlignment(Qt.AlignmentFlag.AlignRight)
+        label.setObjectName("SettingsFooter")
+        layout.addWidget(label, 1)
+        self.setLayout(layout)
 
 def apply_dark_title_bar(window):
     """

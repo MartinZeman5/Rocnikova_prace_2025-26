@@ -1,9 +1,11 @@
-import sys, os, json, pygame, pyproj, threading, ctypes, random
+import sys, os, json, pygame, pyproj, threading, ctypes, random, shutil
 import geopandas as gpd
 from pygame import K_KP_ENTER, K_RETURN
 from shapely.geometry import Polygon, MultiPolygon, shape, box
 from shapely.ops import unary_union, transform
 from ctypes import windll, byref
+
+APP_NAME = "GeoDraw"
 
 """ Hlavní okno ---------------------------------------------------------------------------------------------------- """
 class MainWindow:
@@ -304,6 +306,8 @@ class Map:
         visible_geometry = self.outermap.intersection(view_box)
         self.draw_country(self.surface, visible_geometry, styles.color["continent"])
         if self.state == "drawing":
+            if self.scale > 40: # Pokud máme dostatečně zazoomováno, chceme aby hledaná země měla hranice, tak, jak ji poté budeme požadovat
+                self.draw_country(self.surface, self.country.intersection(view_box), styles.color["continent"])
             self.draw_borders(self.surface, self.drawn)
             if len(self.drawn_points) >= 2:
                 pygame.draw.lines(self.surface, styles.color["border"], False,
@@ -573,7 +577,7 @@ class Tutorial:
         elif self.step == 3:
             return "To start drawing a country, you need to press or hold the left button."
         elif self.step == 4:
-            return "When you are satisfied with shape of what have you drawn, press SPACE, it will close the drawn polygon."
+            return "When you are satisfied with shape of what you have drawn, press SPACE, it will close the drawn polygon."
         elif self.step == 5:
             return "You can draw multiple polygons (some countries have islands you need to include)."
         elif self.step == 6:
@@ -585,7 +589,7 @@ class Tutorial:
         elif self.step == 9:
             return "If you want to calculate the result, press ENTER. Try to draw Germany:"
         elif self.step == 10:
-            return "Green is the correct area, red is the wrong area, and yellow is what have you missed."
+            return "Green is the correct area, red is the wrong area, and yellow is what you have missed."
         else:
             return "Congratulations! You have completed the tutorial."
 
@@ -740,9 +744,30 @@ def resource_path(relative_path):
         base_path = os.path.abspath(".")
     return os.path.join(base_path, relative_path)
 
+
+def get_writable_path(filename):
+    """
+    Vrátí cestu do složky AppData/Local/GeoDraw, kam můžeme zapisovat (ale i číst).
+    Pokud složka neexistuje, automaticky ji vytvoří.
+    """
+    # Získáme cestu k systémové složce AppData (Local)
+    app_data_dir = os.getenv('LOCALAPPDATA')
+
+    # Vytvoříme celou cestu: .../AppData/Local/GeoDraw
+    target_dir = os.path.join(app_data_dir, APP_NAME)
+
+    # Pokud složka ještě neexistuje (první spuštění), vytvoříme ji
+    if not os.path.exists(target_dir):
+        os.makedirs(target_dir)
+
+    filepath = os.path.join(target_dir, filename)
+    if not os.path.exists(filepath): # Pokud soubor neexistuje, nastavíme na defaultní data
+        shutil.copyfile(resource_path("data/default-AppData/"+filename), filepath)
+    return filepath
+
 def pick_random_country(path=resource_path("country_data")):
     json_dict = json.loads(open(os.path.join(path,"continents.json"), 'r', encoding="utf-8").read())
-    allowed_continents = json_dict["allowed_continents"]
+    allowed_continents = settings.sdict["allowed_continents"]
     continent = random.choice(allowed_continents)
     list_countries = list(json_dict[continent].keys())
     choice = random.choice(list_countries)
@@ -767,7 +792,18 @@ class Styles:
 class Settings:
     """ Nastavení """
     def __init__(self):
-        self.mode = "dark-mode"
+        self.mode = str()
+        self.sdict = dict()
+        self.load_settings()
+
+    def load_settings(self):
+        settings_dict = json.loads(open(get_writable_path("settings.json"), "r", encoding="utf-8").read())
+        self.mode = settings_dict["color-palette"]
+        self.sdict = settings_dict
+
+    def save_settings(self):
+        self.sdict["color-palette"] = self.mode
+        json.dump(self.sdict, open(get_writable_path("settings.json"), "w", encoding="utf-8"))
 
 def run_pygame(width=1000,height=700, background_map_file=None, country_file=None):
     """ Spustí hru se zadanými parametry (Pak je ještě potřeba zvenku zavolat .mainloop()) """

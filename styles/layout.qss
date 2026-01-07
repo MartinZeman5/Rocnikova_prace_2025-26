@@ -1,5 +1,3 @@
-/* --- ZÁKLADNÍ ROZLOŽENÍ A PÍSMA --- */
-
 QWidget {
     font-family: "Cambria Math", serif;
 }
@@ -15,14 +13,17 @@ QPushButton {
     border-radius: 5px;
 }
 
-/* --- SPECIFICKÉ PRVKY --- */
-
-#ContinentTitle {
+#Title {
     font-size: 18px;
     font-weight: bold;
     padding-bottom: 10px;
     border-bottom-style: solid;
     border-bottom-width: 2px;
+}
+
+#SettingsFooter {
+    font-size: 11px;
+    padding: 5px;
 }
 
 QCheckBox {
@@ -38,6 +39,14 @@ QCheckBox::indicator {
     border-radius: 8px;
 }
 
+QLineEdit {
+    height: 16px;
+    font-size: 15px;
+    border: 1px black solid;
+    border-radius: 8px;
+    padding: 5px 10px;
+}
+
 #BtnStart, #BtnBack {
     font-size: 14px;
     border: none;
@@ -45,4 +54,8 @@ QCheckBox::indicator {
 
 #BtnStart {
     font-weight: bold;
+}
+
+#copyright {
+    font-size: 12px;
 }
