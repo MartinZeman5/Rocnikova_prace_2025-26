@@ -1,0 +1,67 @@
+/* --- POZADÍ --- */
+
+Menu {
+    background-color: #333333;
+    color: white;
+}
+
+/* --- TLAČÍTKA --- */
+
+QPushButton#play_button {
+    background-color: #003388;
+}
+
+QPushButton#play_button:hover {
+    background-color: #0066aa;
+}
+
+#ContinentSelector {
+    background-color: #333333;
+    color: white;
+}
+
+#ContinentTitle {
+    color: #dddddd;
+}
+
+QCheckBox {
+    color: white;
+}
+
+QCheckBox:unchecked {
+    color: #ca100a;
+}
+
+QCheckBox::indicator:checked {
+    background-color: #3d8533;
+    border-color: black;
+}
+
+QCheckBox::indicator:unchecked {
+    background-color: #ca100a;
+    border-color: black;
+}
+
+QCheckBox::indicator:checked:hover {
+    background-color: #45a049;
+}
+
+QCheckBox::indicator:unchecked:hover {
+    background-color: #da190b;
+}
+
+#BtnStart {
+    background-color: #3d8533;
+    color: white;
+}
+#BtnStart:hover {
+    background-color: #45a049;
+}
+
+#BtnBack {
+    background-color: #ca100a;
+    color: white;
+}
+#BtnBack:hover {
+    background-color: #da190b;
+}

@@ -1,0 +1,36 @@
+{
+  "font": "cambriamath",
+  "fontsizes":
+  {
+    "nadpis": 50,
+    "button": 25,
+    "loading": 30
+  },
+  "colors":
+  {
+    "text": [255,255,255],
+    "background": [0,0,0],
+    "toolbar_background": [40,40,40],
+    "continent": [125,195,45],
+    "ocean": [10,27,100],
+    "border": [0,0,0],
+    "correct_area": [0,215,0],
+    "wrong_area": [215,0,0],
+    "rest_area": [215,215,0],
+    "zoom_button": [255,255,255],
+    "zoom_button_hover": [200,200,200],
+    "alert": [40,40,40],
+    "alert_succes": [0,175,20],
+    "alert_succes_hover": [0,155,20],
+    "alert_cancel": [200,10,10],
+    "alert_cancel_hover": [175,10,10],
+    "alert_other": [100,100,100],
+    "alert_other_hover": [75,75,75],
+    "button_next_country": [0,140,215],
+    "button_next_country_hover": [0,120,190],
+    "button_calculate_result": [0,215,140],
+    "button_calculate_result_hover": [0,190,120],
+    "button_hint": [215,140,10],
+    "button_hint_hover": [185,90,5]
+  }
+}

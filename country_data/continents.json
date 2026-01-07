@@ -9,8 +9,7 @@
     "South America"
   ],
   "allowed_continents": [
-    "North America",
-    "South America"
+    "Asia"
   ],
   "Europe": {
     "Albania": "_Eurasia/ALB",

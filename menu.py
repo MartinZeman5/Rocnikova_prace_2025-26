@@ -15,12 +15,14 @@ class Menu(QWidget):
         self.setWindowTitle('GeoDraw - Menu')
         self.set_icon()
         self.resize(1000, 700)
+        if settings.mode == "dark-mode":
+            apply_dark_title_bar(self)
         h_layout = QHBoxLayout()
         middle_v_layout = QVBoxLayout()
         title = QLabel()
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
-        logo_path = resource_path('styles/GeoDraw_menu_logo.png')
+        logo_path = resource_path('styles/GeoDraw_menu_logo_dark.png') if settings.mode == "dark-mode" else resource_path('styles/GeoDraw_menu_logo.png')
         pixmap = QPixmap(logo_path)
 
         if not pixmap.isNull():
@@ -105,6 +107,8 @@ class ContinentSelector(QDialog):
         self.setWindowTitle("Choose continents")
         self.resize(350, 450)
         self.setObjectName("ContinentSelector")
+        if settings.mode == "dark-mode":
+            apply_dark_title_bar(self)
 
         # Layout
         layout = QVBoxLayout()
@@ -154,11 +158,40 @@ class ContinentSelector(QDialog):
                 selected.append(chk.text())
         return selected
 
+def apply_dark_title_bar(window):
+    """
+    Zapne tmavou horní lištu (Title Bar) pro dané okno ve Windows 10/11.
+    """
+    try:
+        # Získáme handle (ID) okna
+        hwnd = window.winId()
+
+        DWMWA_USE_IMMERSIVE_DARK_MODE = 20
+        ctypes.windll.dwmapi.DwmSetWindowAttribute(
+            int(hwnd),
+            DWMWA_USE_IMMERSIVE_DARK_MODE,
+            ctypes.byref(ctypes.c_int(1)),
+            ctypes.sizeof(ctypes.c_int)
+        )
+    except Exception as e:
+        print(f"Nepodařilo se nastavit tmavou lištu: {e}")
+
+def load_styles(mode):
+    """ Načtení souborů se styly podle palety """
+    with open(resource_path("styles/layout.qss"), "r", encoding="utf-8") as f:
+        layout_style = f.read()
+
+    # Načteme barvy
+    with open(resource_path("styles/"+mode+".qss"), "r", encoding="utf-8") as f:
+        color_style = f.read()
+
+    # Vrátíme spojený řetězec
+    return layout_style + color_style
+
 
 if __name__ == '__main__':
+    settings = Settings()
     app = QApplication(sys.argv)
-    with open(resource_path("styles/menu.qss"), "r") as f:
-        _style = f.read()
-        app.setStyleSheet(_style)
+    app.setStyleSheet(load_styles(settings.mode))
     window = Menu()
     sys.exit(app.exec())

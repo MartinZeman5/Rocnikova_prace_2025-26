@@ -3,6 +3,7 @@ import geopandas as gpd
 from pygame import K_KP_ENTER, K_RETURN
 from shapely.geometry import Polygon, MultiPolygon, shape, box
 from shapely.ops import unary_union, transform
+from ctypes import windll, byref
 
 """ Hlavní okno ---------------------------------------------------------------------------------------------------- """
 class MainWindow:
@@ -12,6 +13,7 @@ class MainWindow:
         pygame.init()
         set_icon(icon)
         self.screen = pygame.display.set_mode((width, height), pygame.RESIZABLE)
+        set_dark_title_bar()
         self.mapfile = outermap
         self.country = country
         self.countryfile = countrymap
@@ -175,10 +177,12 @@ class MainWindow:
             width = max(500, width)
             height = max(500, height)
             self.screen = pygame.display.set_mode((width, height), pygame.RESIZABLE)
+            set_dark_title_bar()
         elif (width < 1000 or height < 500) and self.tutorial.active: # Při tutoriálu chceme větší šířku, kvůli delším textům
             width = max(1000, width)
             height = max(500, height)
             self.screen = pygame.display.set_mode((width, height), pygame.RESIZABLE)
+            set_dark_title_bar()
         self.map.set_window_size(10, 115, width-20, height-130)
         pygame.display.set_caption("GeoDraw")
 
@@ -216,7 +220,7 @@ class Map:
         else:
             self.outermap = unary_union([row.geometry for _, row in data.iterrows()]).buffer(0) # Data vnější mapy
         self.country = country_data # Data mapy země
-        self.country = unary_union([row.geometry.buffer(0) for _, row in self.country.iterrows()])
+        self.country = unary_union([row.geometry.buffer(0) for _, row in self.country.iterrows()]).buffer(0)
         self.state = "drawing" # Aktuální stav mapy (drawing/result)
         self.hint = False # Je zobrazena nápověda?
         self.hint_data = country_data.buffer(0).union_all().bounds
@@ -450,9 +454,9 @@ class Map:
         self.percent_wrong_area = (drawn_rest_metric.area / self.country_area) * 100
         self.result = self.percent_correct_area - self.percent_wrong_area
         # Zpětná transformace
-        self.intersection_geom = transform(self.back_transformer, intersection_metric)
-        self.drawn_rest_geom = transform(self.back_transformer, drawn_rest_metric)
-        self.country_rest_geom = transform(self.back_transformer, country_rest_metric)
+        self.intersection_geom = transform(self.back_transformer, intersection_metric).buffer(0)
+        self.drawn_rest_geom = transform(self.back_transformer, drawn_rest_metric).buffer(0)
+        self.country_rest_geom = transform(self.back_transformer, country_rest_metric).buffer(0)
         self.state = "result"
         self.update_map_surface()
 
@@ -692,6 +696,39 @@ def set_icon(icon):
         pass
     pygame.display.set_icon(icon)
 
+
+def set_dark_title_bar():
+    """
+    Zapne tmavou horní lištu (Title Bar) pro dané okno ve Windows 10/11.
+    """
+    if settings.mode != "dark-mode":
+        return
+    try:
+        hwnd = pygame.display.get_wm_info()['window']
+        # 1. Nastavení tmavého režimu (DWMWA_USE_IMMERSIVE_DARK_MODE = 20)
+        ctypes.windll.dwmapi.DwmSetWindowAttribute(
+            int(hwnd),
+            20,
+            ctypes.byref(ctypes.c_int(1)),
+            ctypes.sizeof(ctypes.c_int)
+        )
+        # 2. Vynucení okamžitého překreslení rámečku okna (jednorázovým zvětšením okna o pixel)
+        rect = ctypes.wintypes.RECT()
+        windll.user32.GetWindowRect(hwnd, byref(rect))
+        x = rect.left
+        y = rect.top
+        w = rect.right - rect.left
+        h = rect.bottom - rect.top
+        # Konstanty pro SetWindowPos
+        SWP_NOZORDER = 0x0004
+        SWP_NOACTIVATE = 0x0010
+        # Změníme velikost na šířku + 1 pixel
+        windll.user32.SetWindowPos(int(hwnd), 0, x, y, w + 1, h, SWP_NOZORDER | SWP_NOACTIVATE)
+        # Vrátíme velikost hned zpátky na původní
+        windll.user32.SetWindowPos(int(hwnd), 0, x, y, w, h, SWP_NOZORDER | SWP_NOACTIVATE)
+    except Exception as e:
+        print(f"Nepodařilo se nastavit tmavou lištu (možná nejsi na Windows?): {e}")
+
 """ Další pomocné funkce ------------------------------------------------------------------------------------------- """
 def resource_path(relative_path):
     """ Získá správnou cestu k přibaleným datům (pro exe) """
@@ -727,10 +764,16 @@ class Styles:
         self.worldmap0 = unary_union([row.geometry for _, row in data.iterrows()]).buffer(0)
         self.data = data
 
+class Settings:
+    """ Nastavení """
+    def __init__(self):
+        self.mode = "dark-mode"
+
 def run_pygame(width=1000,height=700, background_map_file=None, country_file=None):
     """ Spustí hru se zadanými parametry (Pak je ještě potřeba zvenku zavolat .mainloop()) """
-    global styles
-    styles = Styles(resource_path("styles/normal.json"))
+    global styles, settings
+    settings = Settings()
+    styles = Styles(resource_path("styles/"+settings.mode+".json"))
     if country_file is None:
         country_file = pick_random_country(resource_path("country_data"))
     country_name = country_file.split("/")[-1].split(".")[0] # Chci název souboru
@@ -741,13 +784,15 @@ def run_pygame(width=1000,height=700, background_map_file=None, country_file=Non
 
 def run_tutorial(width=1000,height=700):
     """ Spustí tutoriál (Pak je ještě potřeba zvenku zavolat .mainloop()) """
-    global styles
-    styles = Styles(resource_path("styles/normal.json"))
+    global styles, settings
+    settings = Settings()
+    styles = Styles(resource_path("styles/"+settings.mode+".json"))
     width = max(1000, width)
     height = max(500, height)
     return MainWindow(width, height, None, "Germany", gpd.read_file(resource_path("data/tutorial-Germany.topojson")), pygame.image.load(resource_path("styles/icon.png")), tutorial=True)
 
 if __name__ == "__main__":
-    styles = Styles(resource_path("styles/normal.json"))
-    run = MainWindow(1000, 700, gpd.read_file(resource_path("data/worldmap0.geojson")), "France", gpd.read_file(resource_path("geoBoundaries-FRA-ADM0_simplified.topojson")), pygame.image.load(resource_path("styles/icon.png")))
+    styles = Styles(resource_path("styles/light-mode.json"))
+    settings = Settings()
+    run = run_pygame()
     run.mainloop()
