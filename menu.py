@@ -215,6 +215,9 @@ class CountryDialog(QDialog):
         super().__init__()
         self.setWindowTitle("Choose country")
         self.resize(400, 400)
+        self.setObjectName("CountryDialog")
+        if settings.mode == "dark-mode":
+            apply_dark_title_bar(self)
 
         layout = QVBoxLayout()
 
