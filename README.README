@@ -1,4 +1,6 @@
-Je třeba nainstalovat python knihovny:
+Lze stáhnout a spustit pouze nejnovější verzi .exe souboru, tím se nainstaluje kompletní aplikace.
+
+Pro spuštění python souboru je třeba nainstalovat python knihovny:
 pip install pygame pyproj geopandas shapely PyQt6
 
 Hlavní soubor pro spuštění je menu.py, ten spustí PyQt menu.
@@ -13,4 +15,6 @@ enter - vyhodnocení
 backspace - smazání posledního zaznamenaného bodu při malovaní
 delete - smazání všeho doposud namalovaného
 
-Uvnitř hry je krátký tutoriál, který s ovládáním seznámí
+Uvnitř hry je krátký tutoriál, který s ovládáním seznámí.
+
+Ve složkách se nachází data potřebná ke hře.
